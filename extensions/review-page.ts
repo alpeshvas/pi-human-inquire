@@ -22,6 +22,7 @@ function buildSidebarMarkup(sourcePath: string): string {
 	return [
 		'<aside id="pi-plan-review-panel">',
 		'  <div id="pi-plan-review-header">',
+		'    <button id="pi-review-toggle" class="pi-review-ghost pi-review-toggle" type="button" aria-expanded="true" title="Toggle review panel">Hide</button>',
 		`    <div class="pi-review-filename" title="${escapeHtml(sourcePath)}">${escapeHtml(filename)}</div>`,
 		'    <button id="pi-add-general" class="pi-review-ghost" title="Add a general comment">+ Note</button>',
 		'  </div>',
