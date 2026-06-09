@@ -7,14 +7,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { slugify } from "./review-page";
 import { createReviewServer, listenOnRandomPort, reviewUrl } from "./review-server";
+import type { ReviewServer } from "./review-server";
 import { buildReviewSummary } from "./review-submissions";
 
 const execFileAsync = promisify(execFile);
 const REVIEW_ROOT = ".pi/html-reviews";
-const SERVER_SHUTDOWN_DELAY_MS = 750;
-
 type ReviewRuntime = {
-	server?: import("node:http").Server;
+	server?: ReviewServer;
 	port?: number;
 	sourcePath?: string;
 	reviewDir?: string;
@@ -54,14 +53,22 @@ export default function (pi: ExtensionAPI) {
 		});
 	}
 
-	function scheduleServerShutdown() {
-		setTimeout(() => { closeServer().catch(() => {}); }, SERVER_SHUTDOWN_DELAY_MS);
-	}
-
 	function forwardSubmissionToPi(payload: any, savedPaths: { jsonPath: string; markdownPath: string }) {
 		try {
 			pi.sendUserMessage(buildReviewSummary(payload, savedPaths.jsonPath, savedPaths.markdownPath), { deliverAs: "followUp" });
 		} catch {}
+	}
+
+	function announceReview(result: ReviewLaunchResult, ctx: any, verb: "opened" | "updated") {
+		const lines = [
+			`pi-human-inquire ${verb}`,
+			`URL: ${result.url}`,
+			`Source: ${result.sourcePath}`,
+			`Review files: ${result.reviewDir}`,
+		];
+		ctx.ui.setStatus("html-review", `HTML review ${verb}: ${result.url}`);
+		ctx.ui.setWidget("html-review", lines);
+		ctx.ui.notify(`HTML review ${verb}: ${result.url}`, "info");
 	}
 
 	async function launchReview(sourcePathInput: string, ctx: any): Promise<ReviewLaunchResult> {
@@ -72,36 +79,53 @@ export default function (pi: ExtensionAPI) {
 		const submissionsDir = path.join(reviewDir, "submissions");
 		await fs.mkdir(submissionsDir, { recursive: true });
 
-		await closeServer();
+		let openedNewServer = false;
+		let clientCount = 0;
+		if (runtime.server && runtime.port) {
+			runtime.server.updateReviewHtml({
+				sourceHtml,
+				sourcePath,
+				reviewDir,
+				submissionsDir,
+				source: "launchReview",
+			});
+			clientCount = runtime.server.getReviewState().clientCount;
+			Object.assign(runtime, { sourcePath, reviewDir });
+		} else {
+			const server = createReviewServer({
+				ctx,
+				sourceHtml,
+				sourcePath,
+				reviewDir,
+				submissionsDir,
+				onSubmitted: forwardSubmissionToPi,
+			});
+			const port = await listenOnRandomPort(server);
+			Object.assign(runtime, { server, port, sourcePath, reviewDir });
+			openedNewServer = true;
+		}
 
-		const server = createReviewServer({
-			ctx,
-			sourceHtml,
-			sourcePath,
-			reviewDir,
-			submissionsDir,
-			onSubmitted: forwardSubmissionToPi,
-			onShouldClose: scheduleServerShutdown,
-		});
-		const port = await listenOnRandomPort(server);
-		Object.assign(runtime, { server, port, sourcePath, reviewDir });
-
-		const url = reviewUrl(port);
-		await openBrowser(url);
+		const url = reviewUrl(runtime.port!);
+		if (ctx.mode !== "rpc" && (openedNewServer || clientCount === 0)) {
+			await openBrowser(url);
+		}
 		return { url, reviewDir, sourcePath };
 	}
 
 	const openReviewCommand = async (args: string, ctx: any) => {
-		const fileArg = args.trim();
+		let fileArg = args.trim();
+		if (!fileArg && ctx.hasUI) {
+			fileArg = (await ctx.ui.input("HTML file to review", "path/to/document.html"))?.trim() ?? "";
+		}
 		if (!fileArg) {
 			ctx.ui.notify("Usage: /annotate-html <path-to-html>", "error");
 			return;
 		}
 
 		try {
+			const hadServer = !!runtime.server;
 			const result = await launchReview(fileArg, ctx);
-			ctx.ui.notify(`Opened pi-human-inquire: ${result.url}`, "info");
-			ctx.ui.notify(`Review files will be saved in ${result.reviewDir}`, "info");
+			announceReview(result, ctx, hadServer ? "updated" : "opened");
 		} catch (error: any) {
 			ctx.ui.notify(`Failed to open HTML review: ${error?.message ?? error}`, "error");
 		}
@@ -125,6 +149,8 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			await closeServer();
+			ctx.ui.setStatus("html-review", undefined);
+			ctx.ui.setWidget("html-review", undefined);
 			ctx.ui.notify("Stopped HTML review server", "info");
 		},
 	});
@@ -139,9 +165,11 @@ export default function (pi: ExtensionAPI) {
 			path: Type.String({ description: "Path to the HTML file to open in pi-human-inquire" }),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const hadServer = !!runtime.server;
 			const result = await launchReview(params.path, ctx);
+			announceReview(result, ctx, hadServer ? "updated" : "opened");
 			return {
-				content: [{ type: "text", text: `Opened HTML review for ${result.sourcePath}. Review URL: ${result.url}` }],
+				content: [{ type: "text", text: `${hadServer ? "Updated" : "Opened"} HTML review for ${result.sourcePath}. Review URL: ${result.url}` }],
 				details: result,
 			};
 		},

@@ -4,8 +4,8 @@ pi-human-inquire turns plans, notes, specs, RFCs, recaps, research, diffs, and o
 
 It includes:
 
-- a `human-review` skill that creates reviewable HTML from structured content
-- a browser surface for comments, contextual questions, threaded discussion, and feedback submission
+- the Reviewable HTML skill (`human-review`), which turns structured content into a standalone review page and opens it in Pi
+- an in-browser review workspace for comments, contextual questions, threaded discussion, and submitting feedback back to Pi
 
 ## Install
 
@@ -19,20 +19,42 @@ pi -e npm:pi-human-inquire
 
 ### Install globally
 
+From npm:
+
 ```bash
 pi install npm:pi-human-inquire
 ```
 
+From git:
+
+```bash
+pi install git:github.com/alpeshvas/pi-human-inquire
+```
+
+From a local checkout:
+
+```bash
+pi install .
+```
+
 ### Install for a project
+
+From npm:
 
 ```bash
 pi install -l npm:pi-human-inquire
 ```
 
-### Install from git
+From git:
 
 ```bash
-pi install git:github.com/alpeshvas/pi-human-inquire
+pi install -l git:github.com/alpeshvas/pi-human-inquire
+```
+
+From a local checkout:
+
+```bash
+pi install -l .
 ```
 
 ## Run from source
@@ -97,11 +119,10 @@ Legacy alias:
 /annotate-plan-html /absolute/path/to/document.html
 ```
 
-## Browser surface
+## In-browser review workspace
 
-In the opened HTML review page, you can:
+In the opened review workspace, you can:
 
-- click any block to ask agent questions or leave feedback
 - select text for comments
 - continue threaded agent Q&A in place
 - add document-level notes
@@ -122,7 +143,7 @@ flowchart TD
   E --> T
   E --> C["/annotate-html"]
 
-  T --> B["Browser review page"]
+  T --> B["In-browser review workspace"]
   C --> B
 
   B --> BR["ctx.sessionManager.getBranch<br/>recent session context"]

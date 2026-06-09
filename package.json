@@ -1,6 +1,6 @@
 {
   "name": "pi-human-inquire",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Human-in-the-loop document inquiry and feedback for Pi.",
   "keywords": [
     "pi-package",

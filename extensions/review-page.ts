@@ -43,7 +43,14 @@ function buildSidebarMarkup(sourcePath: string): string {
 	].join("");
 }
 
-function buildReviewSurface(config: { sourcePath: string }): string {
+export type ReviewPageConfig = {
+	sourcePath: string;
+	version?: number;
+	reviewId?: string;
+	eventsPath?: string;
+};
+
+function buildReviewSurface(config: ReviewPageConfig): string {
 	return `<script>window.__PI_HTML_REVIEW__=${JSON.stringify(config)};</script>
 <style>
 ${REVIEW_CLIENT_STYLE}
@@ -52,7 +59,7 @@ ${REVIEW_CLIENT_STYLE}
 <script>${REVIEW_CLIENT_SCRIPT}</script>`;
 }
 
-export function renderHtmlWithReviewSurface(html: string, config: { sourcePath: string }): string {
+export function renderHtmlWithReviewSurface(html: string, config: ReviewPageConfig): string {
 	const reviewSurface = buildReviewSurface(config);
 	return html.includes("</body>")
 		? html.replace("</body>", `${reviewSurface}</body>`)
