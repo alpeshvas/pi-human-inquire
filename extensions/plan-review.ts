@@ -60,15 +60,10 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function announceReview(result: ReviewLaunchResult, ctx: any, verb: "opened" | "updated") {
-		const lines = [
-			`pi-human-inquire ${verb}`,
-			`URL: ${result.url}`,
-			`Source: ${result.sourcePath}`,
-			`Review files: ${result.reviewDir}`,
-		];
-		ctx.ui.setStatus("html-review", `HTML review ${verb}: ${result.url}`);
-		ctx.ui.setWidget("html-review", lines);
-		ctx.ui.notify(`HTML review ${verb}: ${result.url}`, "info");
+		const message = `HTML review ${verb}: ${result.url}`;
+		ctx.ui.setStatus("html-review", message);
+		ctx.ui.setWidget("html-review", undefined);
+		ctx.ui.notify(message, "info");
 	}
 
 	async function launchReview(sourcePathInput: string, ctx: any): Promise<ReviewLaunchResult> {
