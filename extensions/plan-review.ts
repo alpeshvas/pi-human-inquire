@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { slugify } from "./review-page";
+import { renderReviewableSource, slugify } from "./review-page";
 import { createReviewServer, listenOnRandomPort, reviewUrl } from "./review-server";
 import type { ReviewServer } from "./review-server";
 import { buildReviewSummary } from "./review-submissions";
@@ -60,7 +60,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function announceReview(result: ReviewLaunchResult, ctx: any, verb: "opened" | "updated") {
-		const message = `HTML review ${verb}: ${result.url}`;
+		const message = `Document review ${verb}: ${result.url}`;
 		ctx.ui.setStatus("html-review", message);
 		ctx.ui.setWidget("html-review", undefined);
 		ctx.ui.notify(message, "info");
@@ -68,7 +68,8 @@ export default function (pi: ExtensionAPI) {
 
 	async function launchReview(sourcePathInput: string, ctx: any): Promise<ReviewLaunchResult> {
 		const sourcePath = path.resolve(ctx.cwd, sourcePathInput);
-		const sourceHtml = await fs.readFile(sourcePath, "utf8");
+		const sourceContent = await fs.readFile(sourcePath, "utf8");
+		const sourceHtml = renderReviewableSource(sourceContent, sourcePath);
 		const slug = slugify(path.basename(sourcePath, path.extname(sourcePath)));
 		const reviewDir = path.join(ctx.cwd, REVIEW_ROOT, slug);
 		const submissionsDir = path.join(reviewDir, "submissions");
@@ -110,10 +111,10 @@ export default function (pi: ExtensionAPI) {
 	const openReviewCommand = async (args: string, ctx: any) => {
 		let fileArg = args.trim();
 		if (!fileArg && ctx.hasUI) {
-			fileArg = (await ctx.ui.input("HTML file to review", "path/to/document.html"))?.trim() ?? "";
+			fileArg = (await ctx.ui.input("HTML or Markdown file to review", "path/to/document.md"))?.trim() ?? "";
 		}
 		if (!fileArg) {
-			ctx.ui.notify("Usage: /annotate-html <path-to-html>", "error");
+			ctx.ui.notify("Usage: /annotate-html <path-to-html-or-markdown>", "error");
 			return;
 		}
 
@@ -122,12 +123,17 @@ export default function (pi: ExtensionAPI) {
 			const result = await launchReview(fileArg, ctx);
 			announceReview(result, ctx, hadServer ? "updated" : "opened");
 		} catch (error: any) {
-			ctx.ui.notify(`Failed to open HTML review: ${error?.message ?? error}`, "error");
+			ctx.ui.notify(`Failed to open document review: ${error?.message ?? error}`, "error");
 		}
 	};
 
 	pi.registerCommand("annotate-html", {
-		description: "Open reviewable HTML in pi-human-inquire with questions, comments, and submission",
+		description: "Open reviewable HTML or Markdown in pi-human-inquire with questions, comments, and submission",
+		handler: openReviewCommand,
+	});
+
+	pi.registerCommand("annotate-markdown", {
+		description: "Open reviewable Markdown in pi-human-inquire with questions, comments, and submission",
 		handler: openReviewCommand,
 	});
 
@@ -137,34 +143,34 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("annotate-html-stop", {
-		description: "Stop the active HTML review server",
+		description: "Stop the active document review server",
 		handler: async (_args, ctx) => {
 			if (!runtime.server) {
-				ctx.ui.notify("No active HTML review server", "info");
+				ctx.ui.notify("No active document review server", "info");
 				return;
 			}
 			await closeServer();
 			ctx.ui.setStatus("html-review", undefined);
 			ctx.ui.setWidget("html-review", undefined);
-			ctx.ui.notify("Stopped HTML review server", "info");
+			ctx.ui.notify("Stopped document review server", "info");
 		},
 	});
 
 	pi.registerTool({
 		name: "open_html_review",
-		label: "Open HTML Review",
-		description: "Open reviewable HTML in pi-human-inquire with inline questions and feedback support",
-		promptSnippet: "Open reviewable HTML for in-page questions, threaded discussion, and feedback.",
-		promptGuidelines: ["Use open_html_review when the user wants to open reviewable HTML for in-page questions, threaded discussion, comments, and feedback submission."],
+		label: "Open Document Review",
+		description: "Open reviewable HTML or Markdown in pi-human-inquire with inline questions and feedback support",
+		promptSnippet: "Open reviewable HTML or Markdown for in-page questions, threaded discussion, and feedback.",
+		promptGuidelines: ["Use open_html_review when the user wants to open reviewable HTML or Markdown for in-page questions, threaded discussion, comments, and feedback submission."],
 		parameters: Type.Object({
-			path: Type.String({ description: "Path to the HTML file to open in pi-human-inquire" }),
+			path: Type.String({ description: "Path to the HTML or Markdown file to open in pi-human-inquire" }),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const hadServer = !!runtime.server;
 			const result = await launchReview(params.path, ctx);
 			announceReview(result, ctx, hadServer ? "updated" : "opened");
 			return {
-				content: [{ type: "text", text: `${hadServer ? "Updated" : "Opened"} HTML review for ${result.sourcePath}. Review URL: ${result.url}` }],
+				content: [{ type: "text", text: `${hadServer ? "Updated" : "Opened"} document review for ${result.sourcePath}. Review URL: ${result.url}` }],
 				details: result,
 			};
 		},

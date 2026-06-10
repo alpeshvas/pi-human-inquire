@@ -1,10 +1,11 @@
 # pi-human-inquire
 
-pi-human-inquire turns plans, notes, specs, RFCs, recaps, research, diffs, and other structured content into reviewable HTML where humans can ask agent questions and leave feedback directly inside the document.
+pi-human-inquire turns plans, notes, specs, RFCs, recaps, research, diffs, and other structured content into reviewable documents where humans can ask agent questions and leave feedback directly inside the document.
 
 It includes:
 
-- the Reviewable HTML skill (`human-review`), which turns structured content into a standalone review page and opens it in Pi
+- direct Markdown review support for fast rendering without model-generated HTML
+- the Reviewable Document skill (`human-review`), which opens Markdown directly when possible or creates a standalone review page when needed
 - an in-browser review workspace for comments, contextual questions, threaded discussion, and submitting feedback back to Pi
 
 ## Install
@@ -87,7 +88,7 @@ npm pack --dry-run
 
 ## Usage
 
-### Generate reviewable HTML from content
+### Generate or open a reviewable document
 
 Use the skill:
 
@@ -103,13 +104,15 @@ You can invoke it with no arguments, with a file path, or with an instruction:
 /skill:human-review make the previous plan reviewable
 ```
 
-The skill uses the provided content, or the most recent structured content in the conversation. It then creates an HTML file and opens it in the browser. If it cannot find suitable content, it asks you for a path or content.
+The skill uses the provided content, or the most recent structured content in the conversation. Markdown paths are opened directly through the fast built-in renderer; other inline content can still be written as a review artifact and opened in the browser. If it cannot find suitable content, it asks you for a path or content.
 
-### Open existing HTML
+### Open existing Markdown or HTML
 
-If you already have an HTML file:
+If you already have a Markdown or HTML file:
 
 ```text
+/annotate-html /absolute/path/to/document.md
+/annotate-markdown /absolute/path/to/document.md
 /annotate-html /absolute/path/to/document.html
 ```
 
@@ -138,10 +141,10 @@ flowchart TD
   P["Pi package<br/>package.json"] --> S["Skill<br/>/skill:human-review"]
   P --> E["Extension<br/>commands + tool"]
 
-  S --> H["Reviewable HTML"]
+  S --> H["Reviewable HTML or Markdown"]
   S --> T["open_html_review"]
   E --> T
-  E --> C["/annotate-html"]
+  E --> C["/annotate-html or /annotate-markdown"]
 
   T --> B["In-browser review workspace"]
   C --> B
@@ -156,7 +159,14 @@ flowchart TD
 
 ## Skill options
 
-Use lite mode for quick/minimal output:
+Use direct Markdown paths for fastest rendering:
+
+```text
+/skill:human-review notes.md
+/annotate-markdown notes.md
+```
+
+Use lite mode for quick/minimal HTML output when HTML generation is still needed:
 
 ```text
 /skill:human-review --lite notes.md
@@ -168,7 +178,7 @@ Use stubs when iterating on a plan or spec and you want sections to remain stabl
 /skill:human-review --with-stubs spec.md
 ```
 
-By default, generated HTML is written to:
+By default, generated HTML artifacts are written to:
 
 ```text
 ~/.agent/diagrams/<slug>.html
@@ -180,4 +190,4 @@ Submitted feedback is saved locally and sent back into the active Pi session.
 
 ## Compatibility notes
 
-For now, `/annotate-plan-html` remains an alias for `/annotate-html`.
+For now, `/annotate-plan-html` remains an alias for `/annotate-html`; `/annotate-html` also accepts Markdown.

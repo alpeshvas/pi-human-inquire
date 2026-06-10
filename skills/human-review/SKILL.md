@@ -1,23 +1,25 @@
 ---
 name: human-review
-description: Convert structured content into a standardized, review-ready HTML document with stable block ids for pi-human-inquire, then open it for in-page questions and review. Use whenever the user wants to take a written artifact — plan, notes, spec, design doc, RFC, refactor proposal, roadmap, recap, research notes, diff summary, post-mortem, checklist, or any other structured content — and produce an HTML version that can be reviewed block-by-block inside the browser surface. Invoke via /skill:human-review. Also use proactively when the user mentions "review this in the browser", "open this for review", "make this reviewable", "convert this to review HTML", or shares structured content and follows up about reviewing it.
+description: Open structured Markdown or HTML content as a review-ready pi-human-inquire document with stable review blocks for in-page questions and feedback. Use whenever the user wants to take a written artifact — plan, notes, spec, design doc, RFC, refactor proposal, roadmap, recap, research notes, diff summary, post-mortem, checklist, or any other structured content — and make it reviewable in the browser. Prefer the fast Markdown path when possible. Invoke via /skill:human-review. Also use proactively when the user mentions "review this in the browser", "open this for review", "make this reviewable", "convert this to review HTML", or shares structured content and follows up about reviewing it.
 ---
 
 # human-review
 
-This skill produces **review-ready HTML documents** for pi-human-inquire and opens them for in-page questions and human review. It is content-agnostic: the input can be a plan, notes, spec, RFC, design doc, recap, research note, diff summary, post-mortem, checklist, or any other structured content.
+This skill opens **review-ready documents** for pi-human-inquire with in-page questions and human review. It is content-agnostic: the input can be a plan, notes, spec, RFC, design doc, recap, research note, diff summary, post-mortem, checklist, or any other structured content.
 
-Output must always:
+Prefer the **fast Markdown path** whenever possible:
 
-- be a complete, standalone HTML file
-- contain stable `data-review-id` attributes on every review block
-- derive its block structure from the **natural structure of the input**, not from a fixed template
+- if the user provides a `.md`, `.markdown`, `.mdown`, `.mkd`, or `.txt` path, pass that path directly to `open_html_review`; do not generate HTML first
+- if the user provides inline structured content or asks to review the previous plan, write it as a Markdown artifact and pass that `.md` file to `open_html_review`
+- only generate standalone HTML when the user explicitly asks for HTML output or needs a custom designed review page
+
+The extension's Markdown renderer derives stable review blocks from headings, so model-generated HTML is not required for normal plan/spec review.
 
 ## Default action on invocation
 
 **When this skill is invoked, immediately execute the full flow. Do not just describe the skill or ask what to do.**
 
-When invoked, your only task is to create and open the reviewable HTML document. Stop after reporting the saved path and reopen command. Do not perform source edits, critique the source in chat, or continue implementation work.
+When invoked, your only task is to create or identify the reviewable document and open it. Stop after reporting the saved path and reopen command. Do not perform source edits, critique the source in chat, or continue implementation work.
 
 Steps to run by default:
 
@@ -27,24 +29,22 @@ Steps to run by default:
    3. If multiple candidates exist, pick the **most recent**.
    4. If absolutely no suitable content is found in the current conversation, ask the user to paste it or give a path. Do not invent content.
 
-2. Decide the generation mode (see "Modes" below).
+2. If the source is already a Markdown/text/HTML file path, use that exact path. If the source is inline conversation content, save it as Markdown using the rules in the "File output" section.
 
-3. Generate the HTML by deriving blocks from the input's natural structure (see "Deriving block structure").
+3. Only generate standalone HTML if the user explicitly requested HTML output or custom visual formatting.
 
-4. Save the file using the rules in the "File output" section.
+4. **Immediately open it for review** by calling the `open_html_review` tool with the saved path. The tool accepts Markdown, text, and HTML paths. Do this every time, unless the user explicitly said "do not open" or "just generate".
 
-5. **Immediately open it for review** by calling the `open_html_review` tool with the saved path. Do this every time, unless the user explicitly said "do not open" or "just generate".
-
-6. Then tell the user:
+5. Then tell the user:
    - the exact saved path
    - that the review surface is now open in the browser
-   - they can also reopen later with: `/annotate-html <path>`
+   - they can also reopen later with: `/annotate-html <path>` or `/annotate-markdown <path>`
 
-Do not output the HTML inline in the chat. Always write to a file and open it.
+Do not output generated HTML inline in the chat. Always write/open a file.
 
 ## Important: invocation intent
 
-If this skill is invoked or its content is shown with a target artifact path/content, treat that as a request to generate and open reviewable HTML for the artifact.
+If this skill is invoked or its content is shown with a target artifact path/content, treat that as a request to open a reviewable browser surface for the artifact.
 
 Do not interpret the invocation as a request to critique, summarize, or edit the artifact in chat.
 
@@ -53,11 +53,11 @@ Do not modify the source artifact unless the user explicitly asks for edits afte
 Examples:
 
 - User: `/skill:human-review README.md`
-  - Correct: generate review HTML from `README.md`, write it to file, open with `open_html_review`.
-  - Incorrect: review `README.md` in chat or edit `README.md`.
+  - Correct: pass `README.md` directly to `open_html_review` so the extension renders Markdown quickly.
+  - Incorrect: generate HTML from `README.md` in the model, review it in chat, or edit `README.md`.
 
 - User provides this skill context followed by `README.md`
-  - Correct: treat `README.md` as the source content/path and run the review HTML flow.
+  - Correct: treat `README.md` as the source content/path and open it with the fast Markdown review flow.
   - Incorrect: analyze README against the skill instructions and change files.
 
 ## When to use
@@ -83,9 +83,9 @@ Accept any of:
 
 The input can be any kind of document: plan, spec, RFC, design doc, refactor proposal, roadmap, recap, research note, diff summary, post-mortem, checklist, comparison, decision log, etc.
 
-## Required output shell
+## HTML fallback output shell
 
-The HTML must be standalone and self-contained.
+Only use this section when standalone HTML generation is explicitly requested. The HTML must be standalone and self-contained.
 
 ```
 <!DOCTYPE html>
@@ -469,23 +469,26 @@ Lite mode does **not** include this script or TOC.
 
 ## File output
 
-- Default save location: `~/.agent/diagrams/<slug>.html`
-- `<slug>` is derived from the document title (lowercase, hyphenated)
-- If the user provides a path, use it instead
-- If a file already exists at that location, **overwrite it** (this enables review→revise loops)
+- If the user provides a file path, use it directly; do not copy or convert it unless explicitly requested.
+- For inline content, default save location: `~/.agent/diagrams/<slug>.md`.
+- Use `.html` only when standalone HTML generation is explicitly requested.
+- `<slug>` is derived from the document title (lowercase, hyphenated).
+- If a generated file already exists at that location, **overwrite it** (this enables review→revise loops).
 
 ## After generation
 
 Always finish by:
 
-1. Calling the `open_html_review` tool with the saved path so the browser review surface opens automatically.
+1. Calling the `open_html_review` tool with the saved path so the browser review surface opens automatically. The path may be Markdown, text, or HTML.
 2. Telling the user:
-   - the exact file path written
+   - the exact file path opened or written
    - that the review is now open in the browser
    - the reopen command for later use:
 
      ```
      /annotate-html <path>
+     # or
+     /annotate-markdown <path>
      ```
 
 Only skip the auto-open step if the user explicitly says they do not want it opened.
@@ -495,6 +498,14 @@ After opening the review surface, stop. Wait for submitted review feedback or an
 ## Quality checks
 
 Before returning, verify:
+
+For the fast Markdown path, verify:
+
+- the saved/opened path is the original Markdown/text file or a generated `.md` artifact
+- headings are meaningful enough for stable review blocks
+- no model-generated HTML conversion was done unless explicitly requested
+
+For the HTML fallback path, verify:
 
 - every top-level idea in the input maps to a top-level `<section>` block
 - each top-level `<section>` has both `id="<review-id>"` and `data-review-id="<review-id>"`
