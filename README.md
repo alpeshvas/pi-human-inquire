@@ -102,9 +102,19 @@ You can invoke it with no arguments, with a file path, or with an instruction:
 /skill:human-review notes.md
 /skill:human-review turn this RFC into review HTML
 /skill:human-review make the previous plan reviewable
+/skill:human-review --rich architecture-notes.md
+/skill:human-review --visual make the previous analysis reviewable
 ```
 
-The skill uses the provided content, or the most recent structured content in the conversation. Markdown paths are opened directly through the fast built-in renderer; other inline content can still be written as a review artifact and opened in the browser. If it cannot find suitable content, it asks you for a path or content.
+The skill uses the provided content, or the most recent structured content in the conversation. Markdown paths are opened directly through the fast built-in renderer unless `--rich` or `--visual` is passed; other inline content can still be written as a review artifact and opened in the browser. If it cannot find suitable content, it asks you for a path or content.
+
+### Rich / visual review pages
+
+Use `--rich` or `--visual` when you want the skill to generate a bespoke standalone HTML page before opening the review surface. This is intended for diagrams, dashboards, animated explainers, architecture maps, or polished visual summaries where the default Markdown renderer is too plain.
+
+Rich mode still keeps pi-human-inquire review compatibility: generated pages should include stable `data-review-id` / `data-review-title` blocks, inline-only CSS/JS, and no external network assets.
+
+The `/annotate-html` and `/annotate-markdown` commands are open-only commands; they do not generate rich HTML themselves. Use `/skill:human-review --rich ...` when generation is needed.
 
 ### Open existing Markdown or HTML
 
@@ -172,6 +182,13 @@ Use lite mode for quick/minimal HTML output when HTML generation is still needed
 /skill:human-review --lite notes.md
 ```
 
+Use rich/visual mode for bespoke standalone HTML with diagrams, animation, or polished explanatory layout:
+
+```text
+/skill:human-review --rich notes.md
+/skill:human-review --visual make the previous analysis reviewable
+```
+
 Use stubs when iterating on a plan or spec and you want sections to remain stable across revisions:
 
 ```text
@@ -182,6 +199,12 @@ By default, generated HTML artifacts are written to:
 
 ```text
 ~/.agent/diagrams/<slug>.html
+```
+
+Rich/visual artifacts should default to:
+
+```text
+~/.agent/diagrams/<slug>-visual.html
 ```
 
 ## Feedback submission

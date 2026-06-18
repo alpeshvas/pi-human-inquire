@@ -1,19 +1,19 @@
 ---
 name: human-review
-description: Open structured Markdown or HTML content as a review-ready pi-human-inquire document with stable review blocks for in-page questions and feedback. Use whenever the user wants to take a written artifact — plan, notes, spec, design doc, RFC, refactor proposal, roadmap, recap, research notes, diff summary, post-mortem, checklist, or any other structured content — and make it reviewable in the browser. Prefer the fast Markdown path when possible. Invoke via /skill:human-review. Also use proactively when the user mentions "review this in the browser", "open this for review", "make this reviewable", "convert this to review HTML", or shares structured content and follows up about reviewing it.
+description: Open structured Markdown or HTML content as a review-ready pi-human-inquire document with stable review blocks for in-page questions and feedback. Use whenever the user wants to take a written artifact — plan, notes, spec, design doc, RFC, refactor proposal, roadmap, recap, research notes, diff summary, post-mortem, checklist, or any other structured content — and make it reviewable in the browser. Prefer the fast Markdown path when possible; use rich/visual mode when the user explicitly asks for bespoke HTML, diagrams, dashboards, animations, or highly designed explainers. In visual mode, include a purposeful animated region by default. Invoke via /skill:human-review. Also use proactively when the user mentions "review this in the browser", "open this for review", "make this reviewable", "convert this to review HTML", or shares structured content and follows up about reviewing it.
 ---
 
 # human-review
 
 This skill opens **review-ready documents** for pi-human-inquire with in-page questions and human review. It is content-agnostic: the input can be a plan, notes, spec, RFC, design doc, recap, research note, diff summary, post-mortem, checklist, or any other structured content.
 
-Prefer the **fast Markdown path** whenever possible:
+Prefer the **fast Markdown path** whenever possible, except when rich/visual mode is explicitly requested:
 
 - if the user provides a `.md`, `.markdown`, `.mdown`, `.mkd`, or `.txt` path, pass that path directly to `open_html_review`; do not generate HTML first
 - if the user provides inline structured content or asks to review the previous plan, write it as a Markdown artifact and pass that `.md` file to `open_html_review`
-- only generate standalone HTML when the user explicitly asks for HTML output or needs a custom designed review page
+- only generate standalone HTML when the user explicitly asks for HTML output, passes `--rich` / `--visual`, or needs a custom designed review page
 
-The extension's Markdown renderer derives stable review blocks from headings, so model-generated HTML is not required for normal plan/spec review.
+The extension's Markdown renderer derives stable review blocks from headings, so model-generated HTML is not required for normal plan/spec review. Rich/visual mode is the exception: it deliberately creates a bespoke standalone HTML artifact before opening it.
 
 ## Default action on invocation
 
@@ -29,9 +29,9 @@ Steps to run by default:
    3. If multiple candidates exist, pick the **most recent**.
    4. If absolutely no suitable content is found in the current conversation, ask the user to paste it or give a path. Do not invent content.
 
-2. If the source is already a Markdown/text/HTML file path, use that exact path. If the source is inline conversation content, save it as Markdown using the rules in the "File output" section.
+2. Detect the requested mode using the "Modes" section below. If the source is already a Markdown/text/HTML file path and mode is not rich/visual, use that exact path. If the source is inline conversation content and mode is not rich/visual, save it as Markdown using the rules in the "File output" section.
 
-3. Only generate standalone HTML if the user explicitly requested HTML output or custom visual formatting.
+3. Generate standalone HTML only if the user explicitly requested HTML output, custom visual formatting, or rich/visual mode. In rich/visual mode, read the source content and write a new `.html` artifact instead of opening the Markdown directly.
 
 4. **Immediately open it for review** by calling the `open_html_review` tool with the saved path. The tool accepts Markdown, text, and HTML paths. Do this every time, unless the user explicitly said "do not open" or "just generate".
 
@@ -69,6 +69,8 @@ Use this skill when the user asks to:
 - "turn this into review HTML"
 - "make this reviewable"
 - "regenerate the review HTML"
+- "make this rich/visual"
+- "generate a rich visual review page"
 - prepare any structured document for pi-human-inquire
 
 Also run automatically when invoked via `/skill:human-review`, even with no extra prompt.
@@ -83,9 +85,9 @@ Accept any of:
 
 The input can be any kind of document: plan, spec, RFC, design doc, refactor proposal, roadmap, recap, research note, diff summary, post-mortem, checklist, comparison, decision log, etc.
 
-## HTML fallback output shell
+## HTML output shell
 
-Only use this section when standalone HTML generation is explicitly requested. The HTML must be standalone and self-contained.
+Use this section when standalone HTML generation is explicitly requested, including rich/visual mode. The HTML must be standalone and self-contained.
 
 ```
 <!DOCTYPE html>
@@ -154,22 +156,50 @@ Outside stub mode, omit sections the input doesn't address.
 
 ## Modes
 
-Two modes are supported:
+Three generated-output modes are supported. The fast Markdown path is still preferred unless a generated mode is explicitly requested.
 
-- **full** (default) — uses full inline CSS, the visual primitive library, sticky TOC if 4+ sections, and inline interactivity. Best when the document benefits from scannability and visual structure.
+- **full** (default for generated HTML) — uses full inline CSS, the visual primitive library, sticky TOC if 4+ sections, and inline interactivity. Best when the document benefits from scannability and visual structure.
 - **lite** — minimal inline styling, no TOC, no primitive library, no interactivity script. Fastest to generate. Best for short documents or quick one-off reviews.
+- **rich** / **visual** — bespoke standalone HTML with custom visual design, diagrams, dashboards, SVG/canvas, or small inline JS interactions. Best when the user wants an explanatory artifact like an animated model, architecture map, data story, or polished browser review page. Treat **visual** as the motion-forward variant: include at least one purposeful animated region by default unless the user explicitly asks for a static page.
 
 ### How to pick the mode
 
-Pick **lite** if any of these are true:
+Pick **rich/visual** if any of these are true:
+
+- the user passes `rich`, `--rich`, `mode=rich`, `visual`, `--visual`, `mode=visual`, or similar
+- the user asks for "rich HTML", "visual explainer", "diagram", "dashboard", "animation", "interactive", "canvas", "SVG", "polished", "beautiful", or "like this HTML file"
+- the user explicitly says the normal Markdown review page is too plain or asks for a bespoke designed page
+
+If the trigger is `--visual`, `mode=visual`, "visual", "animation", "animated", or "interactive", animation is required, not optional. A static diagram with only load-in fades does **not** satisfy visual mode.
+
+Pick **lite** if rich/visual was not requested and any of these are true:
 
 - the user passes `lite`, `--lite`, `mode=lite`, or similar as an argument
 - the user uses words like "quick", "fast", "lite", "light", "minimal", or "don't worry about formatting" in the same or immediately prior message
 - the input is very short (under ~30 lines of meaningful content) and the user did not explicitly ask for full
 
-Otherwise pick **full**.
+Otherwise pick **full** only when standalone HTML generation is already required. If standalone HTML is not required, use the fast Markdown path instead.
 
-When unsure, prefer **full** for the first generation, and **lite** for re-runs in the same conversation.
+When unsure, prefer the fast Markdown path for ordinary review, **full** for first-time generated HTML, **lite** for quick re-runs, and **rich/visual** only when explicitly signaled.
+
+### Rich / visual mode rules
+
+Rich/visual mode intentionally trades generation speed for a high-quality explanatory page. It must still be reviewable.
+
+- Read the source content first. If the source is Markdown/text, convert it into a new `.html` artifact; do not pass the Markdown path directly.
+- If the source is already `.html`, open it directly unless the user asked to redesign, regenerate, or enrich it.
+- Keep the page fully standalone: inline CSS and JS only, no external network assets.
+- Preserve review compatibility: include `<main class="plan" data-review-id="doc-root" data-review-title="...">` and give every meaningful top-level visual region a stable `id`, `data-review-id`, and `data-review-title`.
+- Use semantic blocks (`section`, `article`, `figure`, `aside`) around visual elements so comments attach to useful targets. Wrap canvases/SVGs in a reviewable section with a short caption or legend.
+- CSS should be scoped under `main.plan` or a document-specific prefix where practical. Avoid styling `body`, `button`, `.node`, or other broad selectors in ways that could conflict with the injected review sidebar.
+- Mark purely operational controls with `data-no-review` if clicking them should not open the review composer.
+- Prefer purposeful visuals over decoration: diagrams, state flows, timelines, spatial layouts, metric cards, animated canvases, or compact explanatory cards.
+- For `--visual`, `mode=visual`, or any animation/interactive request, include at least one **content-bearing animated region** that explains a flow, sequence, state transition, data path, lifecycle, or relationship. Acceptable patterns include animated SVG paths/particles, CSS keyframe timelines, canvas simulations, step sequencers, or JS-driven state machines. Pure entrance fades, hover effects, blinking decoration, or a static diagram do **not** count.
+- Put the animated region inside a reviewable wrapper such as `<section>` or `<figure>` with stable `id`, `data-review-id`, and `data-review-title`, plus a caption/legend explaining what motion represents.
+- Provide visible play/pause controls for any continuous animation, and reset controls when useful. Mark these controls with `data-no-review`.
+- Respect `prefers-reduced-motion`: it is fine to pause animation by default for those users, but the page should still include a Play control so the animation can be intentionally started.
+- Add inline JS only when it improves understanding. CSS/SVG animation is preferred for simple loops; use JS/canvas for stateful or data-driven animations.
+- If the environment also has a `visual-explainer` skill available, explicitly invoke/use it (or read its `SKILL.md` and referenced templates) before generating rich/visual pages. Borrow its design, typography, animation, Mermaid, table, and quality-check standards, then adapt the output to the pi-human-inquire review block contract above. If it is not available, still follow the rich/visual rules here.
 
 ### Lite mode rules
 
@@ -469,9 +499,10 @@ Lite mode does **not** include this script or TOC.
 
 ## File output
 
-- If the user provides a file path, use it directly; do not copy or convert it unless explicitly requested.
+- If the user provides a file path, use it directly; do not copy or convert it unless explicitly requested or rich/visual mode is active.
 - For inline content, default save location: `~/.agent/diagrams/<slug>.md`.
-- Use `.html` only when standalone HTML generation is explicitly requested.
+- Use `.html` only when standalone HTML generation is explicitly requested, including rich/visual mode.
+- In rich/visual mode, default save location is `~/.agent/diagrams/<slug>-visual.html` unless the user gave a specific output path.
 - `<slug>` is derived from the document title (lowercase, hyphenated).
 - If a generated file already exists at that location, **overwrite it** (this enables review→revise loops).
 
@@ -505,7 +536,7 @@ For the fast Markdown path, verify:
 - headings are meaningful enough for stable review blocks
 - no model-generated HTML conversion was done unless explicitly requested
 
-For the HTML fallback path, verify:
+For the generated HTML path, verify:
 
 - every top-level idea in the input maps to a top-level `<section>` block
 - each top-level `<section>` has both `id="<review-id>"` and `data-review-id="<review-id>"`
@@ -516,4 +547,7 @@ For the HTML fallback path, verify:
 - each top-level section uses **at least one visual primitive** when it has more than a single line of content (full mode)
 - if there are 4+ top-level sections, a sticky `<nav class="pr-toc">` is present at the top (full mode)
 - the inline interactivity script is present (full mode)
+- rich/visual pages have a clear visual concept, scoped CSS, reviewable wrappers around canvas/SVG/interactive regions, and `data-no-review` on operational controls
+- if visual mode or animation/interactive output was requested, the generated page contains at least one non-decorative animation tied to the document meaning; entrance fades and hover-only effects are insufficient
+- continuous animations have visible play/pause controls, and reduced-motion handling does not remove the ability to intentionally play the animation
 - stub sections only appear when stub mode was explicitly triggered
